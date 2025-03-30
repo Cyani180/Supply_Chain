@@ -1,6 +1,6 @@
 # Supply_Chain
 
-This is a group project Supply_Chain by me and my new friends :D
+This is a group project Supply_Chain by Nicole, Paul and Janine :D
 
 ## Helpful Git Commands 
 
