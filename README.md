@@ -12,10 +12,10 @@ Clones the repository to your local machine.
 Shows us all currently available branches known to git in our repository.
 We might need to call 'git pull' to get the info of new branches.
 
-### git branch "[branch name]"
+### git branch [branch name]
 Creates a new branch with a given name.
 
-### git checkout "[branch name]"
+### git checkout [branch name]
 With this command we checkout a branch.
 
 ### git status
