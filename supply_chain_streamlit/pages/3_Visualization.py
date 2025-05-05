@@ -9,14 +9,14 @@ import joblib
 from bertopic import BERTopic  # type: ignore
 import os
 
-# --- Load cleaned data ---
+# Load cleaned data
 @st.cache_data
 def load_cleaned_data():
     return pd.read_parquet("data/processed/cleaned_data.parquet")
 
 df = load_cleaned_data()
 
-# --- Load or train BERTopic model ---
+# Load or train BERTopic model
 @st.cache_resource
 def load_or_train_topic_model(headings, model_path="models/bertopic_model.pkl"):
     if os.path.exists(model_path):
@@ -30,10 +30,10 @@ def load_or_train_topic_model(headings, model_path="models/bertopic_model.pkl"):
         st.success("BERTopic model saved ✅")
         return model
 
-# --- App title ---
+# App title
 st.title("📊 Visualization of Trustpilot Reviews")
 
-# --- Rating distribution ---
+# Rating distribution
 st.header("⭐ Distribution of Star Ratings")
 fig_stars, ax_stars = plt.subplots()
 sns.countplot(data=df, x="Stars", order=sorted(df["Stars"].unique()), ax=ax_stars, palette="tab10")
@@ -44,7 +44,7 @@ st.subheader("Table View")
 star_counts = df["Stars"].value_counts().sort_index()
 st.dataframe(star_counts.rename_axis("Stars").reset_index(name="Count"))
 
-# --- Word cloud from cleaned comments ---
+# Word cloud from cleaned comments
 st.header("☁️ Word Cloud from Cleaned Comments")
 if "cleaned_comment" in df.columns:
     text = " ".join(df["cleaned_comment"].dropna())
@@ -56,15 +56,15 @@ if "cleaned_comment" in df.columns:
 else:
     st.warning("Column 'cleaned_comment' not found.")
 
-# --- Topic modeling with BERTopic ---
+# Topic modeling with BERTopic
 st.header("🧠 Topic Modeling using BERTopic")
 
-# --- Optional retrain button ---
+# Optional retrain button
 retrain = st.button("🔁 Retrain BERTopic Model")
 
 headings = df['cleaned_comment'].dropna().tolist()
 
-# --- Load or compute BERTopic model and topics once per session ---
+# Load or compute BERTopic model and topics once per session
 if retrain or "bertopic_model" not in st.session_state or "bertopic_topics" not in st.session_state:
     with st.spinner("Detecting topics using BERTopic..."):
         topic_model = load_or_train_topic_model(headings)
@@ -77,15 +77,15 @@ else:
     topic_model = st.session_state["bertopic_model"]
     topics = st.session_state["bertopic_topics"]
 
-# --- Add topics to DataFrame ---
+# Add topics to DataFrame
 df["topic"] = topics
 
-# --- Topic visualization ---
+# Topic visualization
 st.subheader("📈 Topic Distribution (Top 10)")
 fig = topic_model.visualize_barchart(top_n_topics=10)
 st.plotly_chart(fig)
 
-# --- Average ratings per company ---
+# Average ratings per company
 st.header("🏢 Average Rating by Company")
 avg_stars = df.groupby("Company")["Stars"].mean().sort_values()
 fig_avg, ax_avg = plt.subplots(figsize=(8, 6))
@@ -94,7 +94,7 @@ ax_avg.set_xlabel("Average Rating")
 ax_avg.set_ylabel("Company")
 st.pyplot(fig_avg)
 
-# --- Number of reviews per company ---
+# Number of reviews per company
 st.header("🏢 Number of Reviews by Company")
 fig_comp, ax_comp = plt.subplots(figsize=(8, 6))
 sns.countplot(data=df, y="Company", order=df["Company"].value_counts().index, ax=ax_comp, palette="viridis")
@@ -102,7 +102,7 @@ ax_comp.set_xlabel("Number of Reviews")
 ax_comp.set_ylabel("Company")
 st.pyplot(fig_comp)
 
-# --- Review activity over time ---
+# Review activity over time
 st.header("🕒 Review Activity Over Time")
 df["Dates"] = pd.to_datetime(df["Dates"], errors="coerce")
 df_by_date = df.groupby("Dates").size()

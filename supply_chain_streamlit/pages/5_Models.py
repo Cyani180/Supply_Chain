@@ -9,13 +9,14 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_extraction.text import TfidfVectorizer
-from utils.load_data import load_clean_data # type: ignore
+from utils.load_data import load_clean_data  # type: ignore
 import seaborn as sns
 import matplotlib.pyplot as plt
+import pandas as pd
 
 st.title("🤖 Model Comparison with GridSearchCV")
 
-# --- Load data ---
+# ------------------------ Load and Prepare Data ------------------------
 @st.cache_data
 def load_data():
     return load_clean_data()
@@ -24,17 +25,16 @@ df = load_data()
 X = df["cleaned_comment"]
 y = df["Stars"]
 
-# --- Vectorization ---
+# ------------------------ TF-IDF Vectorization ------------------------
 @st.cache_resource
 def vectorize_data(X):
     vectorizer = TfidfVectorizer(max_features=3000)
     return vectorizer.fit_transform(X)
 
-# --- Session-State for vectors ---
 if "X_vec" not in st.session_state:
     st.session_state["X_vec"] = vectorize_data(X)
 
-# --- Split into Train/Test with Session-State ---
+# ------------------------ Train/Test Split ------------------------
 if not all(k in st.session_state for k in ["X_train", "X_test", "y_train", "y_test"]):
     X_vec = st.session_state["X_vec"]
     X_train, X_test, y_train, y_test = train_test_split(X_vec, y, test_size=0.2, random_state=42)
@@ -48,7 +48,7 @@ else:
     y_train = st.session_state["y_train"]
     y_test = st.session_state["y_test"]
 
-# --- Model configurations with GridSearchCV parameters ---
+# ------------------------ Model Configuration ------------------------
 model_configs = {
     "Logistic Regression": {
         "model": LogisticRegression(max_iter=1000),
@@ -90,11 +90,10 @@ model_configs = {
     }
 }
 
-# --- Create models directory if it does not exist ---
 if not os.path.exists("models"):
     os.makedirs("models")
 
-# --- Training and display results ---
+# ------------------------ Training and Display ------------------------
 def train_and_display_models():
     model_scores = {}
     model_results = {}
@@ -123,12 +122,11 @@ def train_and_display_models():
         st.json(best_params)
         st.write(f"Accuracy: {acc:.4f}")
 
-        # --- Save model ---
-        # Save the best model to a file
+        # Save model
         model_path = f"models/{name.replace(' ', '_').lower()}_model.pkl"
         joblib.dump(best_model, model_path)
 
-        # --- Confusion Matrix ---
+        # Confusion Matrix
         st.subheader(f"📊 Confusion Matrix for {name}")
         cm = confusion_matrix(y_test, y_pred)
         fig_cm, ax_cm = plt.subplots()
@@ -141,11 +139,10 @@ def train_and_display_models():
     st.session_state["model_scores"] = model_scores
     st.session_state["model_results"] = model_results
 
-# --- Load results or retrain ---
+# ------------------------ Run or Reuse Models ------------------------
 if "model_scores" not in st.session_state or "model_results" not in st.session_state:
     train_and_display_models()
 else:
-    # Display results again
     model_scores = st.session_state["model_scores"]
     model_results = st.session_state["model_results"]
 
@@ -155,7 +152,6 @@ else:
         st.json(result["params"])
         st.write(f"Accuracy: {result['accuracy']:.4f}")
 
-        # Recalculate Confusion Matrix
         cm = confusion_matrix(y_test, result["y_pred"])
         fig_cm, ax_cm = plt.subplots()
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm)
@@ -164,25 +160,43 @@ else:
         ax_cm.set_title(f"Confusion Matrix - {name}")
         st.pyplot(fig_cm)
 
-# --- Only if not trained yet ---
-# Check if model_scores is in session_state, if not, train models
-if "model_scores" not in st.session_state:
-    st.session_state["model_scores"] = train_models() # type: ignore
+# Use predictions from the model with highest accuracy
+best_model_name = max(st.session_state["model_scores"], key=st.session_state["model_scores"].get)
+y_pred_all = st.session_state["model_results"][best_model_name]["y_pred"]
 
-# --- Model comparison plot ---
-model_scores = st.session_state["model_scores"]
-st.subheader("📊 Model Comparison by Accuracy")
-fig, ax = plt.subplots()
-sns.barplot(x=list(model_scores.values()), y=list(model_scores.keys()), palette="Set2", ax=ax)
-ax.set_xlabel("Accuracy")
-ax.set_title("Model Accuracy Comparison (GridSearchCV)")
-st.pyplot(fig)
+# ------------------ Review Sentiment Distribution ------------------
+st.subheader("🟢🔴 Review Sentiment Distribution")
 
+# Combine stars into two groups: 1–3 = negative, 4–5 = positive
+y_test_binary = y_test.apply(lambda x: "Negative (1–3)" if x <= 3 else "Positive (4–5)")
+y_pred_binary = pd.Series(y_pred_all).apply(lambda x: "Negative (1–3)" if x <= 3 else "Positive (4–5)")
 
+# Plot the distribution
+fig_group, ax_group = plt.subplots()
+sns.countplot(x=y_test_binary, hue=y_pred_binary, palette="coolwarm", ax=ax_group)
+ax_group.set_xlabel("True Sentiment")
+ax_group.set_ylabel("Count")
+ax_group.set_title("Predicted vs True Sentiment (Grouped)")
+st.pyplot(fig_group)
 
+# ------------------------ Plot: Star Group Distribution ------------------------
+# Show right before accuracy comparison
+y_test_binary = y_test.apply(lambda x: "Negative (1–3)" if x <= 3 else "Positive (4–5)")
+fig_bin, ax_bin = plt.subplots()
+sns.countplot(x=y_test_binary, palette="coolwarm", ax=ax_bin)
+ax_bin.set_title("Star Group Distribution")
+ax_bin.set_xlabel("Sentiment Group")
+ax_bin.set_ylabel("Count")
+st.pyplot(fig_bin)
 
-
-
-
-
-
+# ------------------------ Model Comparison by Accuracy ------------------------
+if "model_scores" in st.session_state:
+    model_scores = st.session_state["model_scores"]
+    st.subheader("📊 Model Comparison by Accuracy")
+    fig, ax = plt.subplots()
+    sns.barplot(x=list(model_scores.values()), y=list(model_scores.keys()), palette="Set2", ax=ax)
+    ax.set_xlabel("Accuracy")
+    ax.set_title("Model Accuracy Comparison (GridSearchCV)")
+    st.pyplot(fig)
+else:
+    st.warning("⚠️ No model scores found. Please run the model training first.")
