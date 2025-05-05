@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import os
 from textblob import TextBlob  # type: ignore
-from utils.convert_to_binary_class import convert_to_binary_class
+from utils.convert_to_binary_class import convert_to_binary_class # type: ignore
 
-from preprocessing import (
+from preprocessing import ( # type: ignore
     clean_text,
     tokenize_text,
     remove_stop_words,
@@ -14,7 +14,8 @@ from preprocessing import (
     balance_classes,
 )
 
-# --- Load raw data ---
+# Load raw data
+# Check if the CSV file exists
 @st.cache_data
 def load_data():
     path = "data/raw/supply_chain_project_trustpilot_advanced_merge.csv"
@@ -28,7 +29,7 @@ def load_data():
 
 df = load_data()
 
-# --- UI for step-by-step preprocessing ---
+# UI for step-by-step preprocessing
 st.title("🧪 Step-by-Step Preprocessing of Headings")
 
 if not df.empty:
@@ -62,17 +63,17 @@ if not df.empty:
 else:
     st.warning("Failed to load data.")
 
-# --- Sentiment calculation ---
+# Sentiment calculation
 df['sentiment'] = df['Heading'].apply(lambda x: TextBlob(str(x)).sentiment.polarity)
 
-# --- Add sentiment class ---
+# Add sentiment class
 df = add_sentiment_class(df)
 
-# --- Show distribution before resampling ---
+# Show distribution before resampling
 st.subheader("📊 Class Distribution Before Resampling")
 st.bar_chart(df['sentiment_class'].value_counts())
 
-# --- Resampling method selection ---
+# Resampling method selection
 resample_method = st.radio("Choose a resampling method:", ["none", "oversample", "undersample"])
 
 if resample_method != "none":
@@ -88,7 +89,7 @@ else:
     st.info("No resampling selected.")
     df_balanced = df
 
-# --- Optional: Convert to binary classification ---
+# Optional: Convert to binary classification
 if st.checkbox("🎯 Convert target to binary (e.g. positive vs. rest)?"):
     df_binary = convert_to_binary_class(df_balanced)
     st.success("Target variable successfully converted to binary.")
