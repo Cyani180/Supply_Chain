@@ -7,8 +7,7 @@ Welcome to the presentation of our project work Supply Chain.
 
 🔍 Brief explanation of the individual steps:
 - An overview of our SVC file
-- Webscraping  
-- Data cleansing, also with regex
+- Web scraping  
 - Visualisation of the data with various diagrams
 - Carry out pre-processing
 - Train the models
