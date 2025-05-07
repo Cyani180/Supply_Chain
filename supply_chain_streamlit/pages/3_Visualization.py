@@ -56,34 +56,6 @@ if "cleaned_comment" in df.columns:
 else:
     st.warning("Column 'cleaned_comment' not found.")
 
-# Topic modeling with BERTopic
-st.header("🧠 Topic Modeling using BERTopic")
-
-# Optional retrain button
-retrain = st.button("🔁 Retrain BERTopic Model")
-
-headings = df['cleaned_comment'].dropna().tolist()
-
-# Load or compute BERTopic model and topics once per session
-if retrain or "bertopic_model" not in st.session_state or "bertopic_topics" not in st.session_state:
-    with st.spinner("Detecting topics using BERTopic..."):
-        topic_model = load_or_train_topic_model(headings)
-        topics, _ = topic_model.transform(headings)
-
-        st.session_state["bertopic_model"] = topic_model
-        st.session_state["bertopic_topics"] = topics
-        st.success("Topic modeling completed and stored in session.")
-else:
-    topic_model = st.session_state["bertopic_model"]
-    topics = st.session_state["bertopic_topics"]
-
-# Add topics to DataFrame
-df["topic"] = topics
-
-# Topic visualization
-st.subheader("📈 Topic Distribution (Top 10)")
-fig = topic_model.visualize_barchart(top_n_topics=10)
-st.plotly_chart(fig)
 
 # Average ratings per company
 st.header("🏢 Average Rating by Company")
