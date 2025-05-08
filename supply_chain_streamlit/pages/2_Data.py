@@ -15,9 +15,7 @@ import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
 from utils.load_data import load_clean_data  # type: ignore
 
-
 # Data Overview
-
 st.title("🗂️ Data Overview & Cleaning")
 
 @st.cache_data
@@ -31,7 +29,6 @@ st.dataframe(raw_df.head(10))
 
 st.subheader("📐 Raw Data Shape")
 st.write(f"**Rows:** {raw_df.shape[0]} | **Columns:** {raw_df.shape[1]}")
-
 
 if st.checkbox("🧼 Show Missing Values in Raw Data"):
     missing = raw_df.isna().sum()
@@ -52,41 +49,96 @@ if st.checkbox("🏢 Filter raw data by Company"):
     st.dataframe(filtered.head(10))
 
 # Data Cleaning + Analysis
-
 st.markdown("---")
 st.subheader("🧹 Data Cleaning + Analysis of Trustpilot Reviews")
 
 @st.cache_data
 def load_and_clean_data():
     df = raw_df.copy()
-    # Remove empty headings
+    # Remove empty headings and comments
     df['Heading'].replace(r'^\s*$', pd.NA, regex=True, inplace=True)
     df.dropna(subset=['Heading'], inplace=True)
+    df['Comment'].replace(r'^\s*$', pd.NA, regex=True, inplace=True)
+    df.dropna(subset=['Comment'], inplace=True)
 
-    stop_words = set(stopwords.words('german'))
+    # Load stopwords
+    german_stopwords = set(stopwords.words('german'))
+    english_stopwords = set(stopwords.words('english'))
+    stop_words = german_stopwords.union(english_stopwords)
     lemmatizer = WordNetLemmatizer()
 
     def preprocess_text(text):
         text = text.lower()
-        text = re.sub(r'http\S+|www\S+', '', text)
-        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        text = re.sub(r'http\S+|www\S+', '', text)  # Entferne URLs
+        text = re.sub(r'[^a-zA-ZäöüÄÖÜß\s]', '', text)  # Entferne Sonderzeichen und Zahlen
+        text = re.sub(r'\s+', ' ', text)  # Entferne überflüssige Leerzeichen
+        text = re.sub(r'\b\w{1,2}\b', '', text)  # Entferne kurze Wörter (z. B. "a", "I")
         tokens = word_tokenize(text)
-        tokens = [w for w in tokens if w not in stop_words]
-        tokens = [lemmatizer.lemmatize(w) for w in tokens]
+        tokens = [w for w in tokens if w not in stop_words]  # Entferne Stoppwörter
+        tokens = [lemmatizer.lemmatize(w) for w in tokens]  # Lemmatize Wörter
         return ' '.join(tokens)
 
+    # Apply preprocessing
     df['cleaned_heading'] = df['Heading'].apply(preprocess_text)
-    df['tokens'] = df['Heading'].apply(lambda t: preprocess_text(t).split())
+    df['cleaned_comment'] = df['Comment'].apply(preprocess_text)
+    df['Text'] = df['cleaned_heading'] + ' ' + df['cleaned_comment']
+    df['tokens'] = df['Text'].apply(lambda t: t.split())
     return df
 
 df = load_and_clean_data()
 
-# Filter by Company in cleaned data
+# Topic modeling with BERTopic
+st.markdown("---")
+st.subheader("🧠 Topic Clustering with BERTopic")
 
-st.subheader("📋 Sample Headings")
-st.dataframe(df[['Heading', 'cleaned_heading', 'tokens']].sample(10))
+retrain = st.button("🔁 Retrain BERTopic Model")
 
+@st.cache_resource
+def load_or_train_topic_model(headings, model_path="models/bertopic_model.pkl"):
+    if os.path.exists(model_path):
+        tm = joblib.load(model_path)
+        return tm, False
+    else:
+        tm = BERTopic(language="english", verbose=True)
+        tm.fit(headings)
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        joblib.dump(tm, model_path)
+        return tm, True
 
+headings = df['cleaned_heading'].tolist()
+model_loaded = False
+
+if retrain:
+    with st.spinner("Retraining the BERTopic model..."):
+        topic_model, model_loaded = load_or_train_topic_model(headings)
+        st.session_state["bertopic_model"] = topic_model
+        st.session_state["bertopic_topics"] = topic_model.transform(headings)[0]
+        st.success("Topic modeling completed and stored in session.")
+else:
+    if "bertopic_model" in st.session_state and "bertopic_topics" in st.session_state:
+        topic_model = st.session_state["bertopic_model"]
+        topics = st.session_state["bertopic_topics"]
+    else:
+        with st.spinner("Detecting topics..."):
+            topic_model, model_loaded = load_or_train_topic_model(headings)
+            st.session_state["bertopic_model"] = topic_model
+            st.session_state["bertopic_topics"] = topic_model.transform(headings)[0]
+            st.success("Loaded or trained BERTopic model")
+
+df["topic"] = st.session_state.get("bertopic_topics", [])
+
+# Dropdown to switch view
+st.markdown("---")
+view_data = st.selectbox("📄 Select Data View", ["Raw Data", "Cleaned Data"])
+
+if view_data == "Raw Data":
+    st.subheader("🔎 Raw Data View")
+    st.dataframe(raw_df[['Heading', 'Comment']].head(10))
+elif view_data == "Cleaned Data":
+    st.subheader("🔎 Cleaned Data View")
+    st.dataframe(df[['cleaned_heading', 'cleaned_comment', 'Text']].head(10))
+
+# Word frequency analysis
 st.subheader("🔠 Top 20 Most Frequent Words")
 all_words = ' '.join(df['cleaned_heading']).split()
 freq_df = pd.DataFrame(Counter(all_words).most_common(20), columns=['Word','Count'])
@@ -95,65 +147,13 @@ sns.barplot(data=freq_df, x='Count', y='Word', ax=ax_bar)
 ax_bar.set_title("Word Frequency")
 st.pyplot(fig_bar)
 
-
-# Topic modeling with BERTopic
-
-st.markdown("---")
-st.subheader("🧠 Topic Clustering with BERTopic")
-
-@st.cache_resource
-def load_or_train_topic_model(headings, model_path="models/bertopic_model.pkl"):
-    if os.path.exists(model_path):
-        tm = joblib.load(model_path)
-        st.success("Loaded existing BERTopic model")
-    else:
-        tm = BERTopic(language="english", verbose=True)
-        tm.fit(headings)
-        os.makedirs(os.path.dirname(model_path), exist_ok=True)
-        joblib.dump(tm, model_path)
-        st.success("Trained and saved new BERTopic model")
-    return tm
-
-headings = df['cleaned_heading'].tolist()
-with st.spinner("Detecting topics..."):
-    topic_model = load_or_train_topic_model(headings)
-
-if "topics" not in st.session_state:
-    topics, _ = topic_model.transform(headings)
-    st.session_state.topics = topics
-else:
-    topics = st.session_state.topics
-
-df['topic'] = topics
-
+# Topic preview
 st.subheader("📌 Topic Preview")
-st.dataframe(df[['cleaned_heading','topic']].sample(10))
+st.dataframe(df[['Text', 'topic']].sample(10))
 
+# Topic overview
 st.subheader("📊 Top Topics Overview")
 st.write(topic_model.get_topic_info().head(10))
-
-
-
-# Optional retrain button
-retrain = st.button("🔁 Retrain BERTopic Model")
-
-headings = df['cleaned_heading'].dropna().tolist()
-
-# Load or compute BERTopic model and topics once per session
-if retrain or "bertopic_model" not in st.session_state or "bertopic_topics" not in st.session_state:
-    with st.spinner("Detecting topics using BERTopic..."):
-        topic_model = load_or_train_topic_model(headings)
-        topics, _ = topic_model.transform(headings)
-
-        st.session_state["bertopic_model"] = topic_model
-        st.session_state["bertopic_topics"] = topics
-        st.success("Topic modeling completed and stored in session.")
-else:
-    topic_model = st.session_state["bertopic_model"]
-    topics = st.session_state["bertopic_topics"]
-
-# Add topics to DataFrame
-df["topic"] = topics
 
 # Topic visualization
 st.subheader("📈 Topic Distribution (Top 10)")

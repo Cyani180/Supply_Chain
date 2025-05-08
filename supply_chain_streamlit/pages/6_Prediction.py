@@ -13,10 +13,37 @@ st.title("🔮 Predict Review Rating")
 # Load the dataset to train TF-IDF and for the game
 @st.cache_data
 def load_data():
-    return load_clean_data()
+    path = "data/raw/supply_chain_project_trustpilot_advanced_merge.csv"
+    if os.path.exists(path):
+        df = pd.read_csv(path)
 
+        # Wenn noch nicht vorhanden, kombiniere die 'Heading' und 'Comment' Spalten zu 'Text'
+        if 'Text' not in df.columns:
+            df['Text'] = df['Heading'] + ' ' + df['Comment']
+
+        # Überprüfen, ob die 'Text' Spalte existiert und NaN-Werte entfernen
+        if 'Text' in df.columns:
+            df.dropna(subset=['Text'], inplace=True)  # Entfernen der Zeilen mit NaN in der 'Text' Spalte
+        else:
+            st.error("Spalte 'Text' konnte nicht erstellt werden.")
+            return pd.DataFrame()  # Rückgabe eines leeren DataFrames, wenn 'Text' nicht existiert
+
+        return df
+    else:
+        st.error("CSV-Datei nicht gefunden!")
+        return pd.DataFrame()
+
+# Load data
 df = load_data()
-X_corpus = df["cleaned_comment"]
+if df.empty:
+    st.error("Fehler beim Laden der Daten.")
+else:
+    # Sicherstellen, dass die Spalte 'Text' vorhanden ist, bevor wir weiter arbeiten
+    if 'Text' in df.columns:
+        X_corpus = df['Text']  # Benutze die kombinierte 'Text' Spalte für die TF-IDF-Transformation
+    else:
+        st.error("Fehler: 'Text' Spalte existiert nicht.")
+        X_corpus = []  # Leerer Korpus, falls Text nicht existiert
 
 # Fit TF-IDF vectorizer on training data
 @st.cache_resource
@@ -25,7 +52,10 @@ def load_vectorizer(corpus):
     vectorizer.fit(corpus)
     return vectorizer
 
-vectorizer = load_vectorizer(X_corpus)
+if X_corpus:
+    vectorizer = load_vectorizer(X_corpus)
+else:
+    vectorizer = None
 
 # Load models
 model_paths = {
@@ -34,7 +64,6 @@ model_paths = {
     "Support Vector Machine": "models/support_vector_machine_model.pkl"
 }
 
-# Load models into dictionary
 @st.cache_resource
 def load_models(paths):
     models = {}
@@ -44,30 +73,6 @@ def load_models(paths):
     return models
 
 models = load_models(model_paths)
-
-# ✅ Funktion zur Vorhersage (wie gefordert)
-
-def predict_rating(comment):
-    processed = preprocess_text(comment)
-    vec = vectorizer.transform([processed])
-    predictions = {}
-    for name, model in models.items():
-        rating = model.predict(vec)[0]
-        predictions[name] = int(rating)
-    return predictions
-
-
-# ✅ Funktion zur Benutzereingabe (wie gefordert)
-
-def user_input_prediction():
-    user_comment = input("Please insert a comment: ")
-    predicted = predict_rating(user_comment)
-    for model, rating in predicted.items():
-        print(f"{model}: ⭐ Predicted Star Rating: {rating}")
-
-
-# Streamlit UI bleibt wie gehabt
-
 
 # Section: Random example sentences
 st.subheader("📝 Choose a sample review (optional)")
@@ -83,7 +88,7 @@ selected_sentence = st.selectbox("Pick a sentence or write your own below:", opt
 # Section: Text input
 user_input = st.text_area("✍️ Enter a customer review to predict the star rating:", value=selected_sentence)
 
-# Section: Preprocessing checkbox (below the text input)
+# Section: Preprocessing checkbox
 preprocess = st.checkbox("Apply text preprocessing (recommended)", value=True)
 
 # Prediction section
@@ -92,36 +97,38 @@ if st.button("🔎 Predict"):
         st.warning("Please enter a valid review.")
     else:
         input_text = preprocess_text(user_input) if preprocess else user_input
-        user_vector = vectorizer.transform([input_text])
+        if vectorizer:
+            user_vector = vectorizer.transform([input_text])
 
-        st.subheader("📈 Predictions from Different Models")
+            st.subheader("📈 Predictions from Different Models")
 
-        ratings = []
-        model_names = []
-        colors = ['#4caf50', '#f44336', '#2196f3']  # Green, Red, Blue
+            ratings = []
+            model_names = []
+            colors = ['#4caf50', '#f44336', '#2196f3']  # Green, Red, Blue
 
-        for idx, (model_name, model) in enumerate(models.items()):
-            prediction = model.predict(user_vector)[0]
-            ratings.append(prediction)
-            model_names.append(model_name)
-            st.success(f"{model_name}: ⭐ Predicted Rating: {int(prediction)}")
+            for idx, (model_name, model) in enumerate(models.items()):
+                prediction = model.predict(user_vector)[0]
+                ratings.append(prediction)
+                model_names.append(model_name)
+                st.success(f"{model_name}: ⭐ Predicted Rating: {int(prediction)}")
 
-        # Plot predictions as bar chart
-        st.subheader("📊 Comparison Plot")
-        fig, ax = plt.subplots()
-        bars = ax.bar(model_names, ratings, color=colors)
-        ax.set_ylabel("Predicted Rating", fontsize=14)
-        ax.set_ylim(0, 5)
-        ax.set_title("Model Predictions", fontsize=16)
-        ax.tick_params(axis='x', labelsize=12)
-        ax.tick_params(axis='y', labelsize=12)
+            # Plot predictions
+            st.subheader("📊 Comparison Plot")
+            fig, ax = plt.subplots()
+            bars = ax.bar(model_names, ratings, color=colors)
+            ax.set_ylabel("Predicted Rating", fontsize=14)
+            ax.set_ylim(0, 5)
+            ax.set_title("Model Predictions", fontsize=16)
+            ax.tick_params(axis='x', labelsize=12)
+            ax.tick_params(axis='y', labelsize=12)
 
-        for bar in bars:
-            yval = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2.0, yval + 0.1, int(yval), ha='center', fontsize=12)
+            for bar in bars:
+                yval = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2.0, yval + 0.1, int(yval), ha='center', fontsize=12)
 
-        st.pyplot(fig)
-
+            st.pyplot(fig)
+        else:
+            st.error("Fehler: Vektorizer konnte nicht geladen werden.")
 
 # Info section
 st.markdown("---")
