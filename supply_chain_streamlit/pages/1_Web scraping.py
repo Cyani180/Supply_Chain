@@ -32,7 +32,7 @@ else:
 
     # Display images in the interface
     st.image("images/reviews-on-trustpilot.png", use_container_width=True)
-    st.image("images/inspection-of-reviews.png", use_container_width=True)
+    st.image("images/web_explain.png", use_container_width=True)
 
     # Section: Search for reviews using common heading phrases
     st.subheader("🔍 Search for Reviews")
