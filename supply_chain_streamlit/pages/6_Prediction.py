@@ -7,8 +7,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from preprocessing import preprocess_text  # custom preprocessing
 from utils.load_data import load_clean_data  # clean dataset loader
 
-st.set_page_config(page_title="Review Rating Prediction", layout="wide")
-st.title("🔮 Predict Review Rating")
+st.set_page_config(page_title="Review Sentiment Prediction", layout="wide")
+st.title("🔮 Predict Review Sentiment")
 
 # Load the dataset to train TF-IDF and for the game
 @st.cache_data
@@ -17,47 +17,41 @@ def load_data():
     if os.path.exists(path):
         df = pd.read_csv(path)
 
-        # Wenn noch nicht vorhanden, kombiniere die 'Heading' und 'Comment' Spalten zu 'Text'
         if 'Text' not in df.columns:
             df['Text'] = df['Heading'] + ' ' + df['Comment']
 
-        # Überprüfen, ob die 'Text' Spalte existiert und NaN-Werte entfernen
         if 'Text' in df.columns:
-            df.dropna(subset=['Text'], inplace=True)  # Entfernen der Zeilen mit NaN in der 'Text' Spalte
+            df.dropna(subset=['Text'], inplace=True)
+            df = df[df['Text'].str.strip().astype(bool)]
         else:
-            st.error("Spalte 'Text' konnte nicht erstellt werden.")
-            return pd.DataFrame()  # Rückgabe eines leeren DataFrames, wenn 'Text' nicht existiert
+            st.error("Column 'Text' could not be created.")
+            return pd.DataFrame()
+
+        if 'Stars' in df.columns:
+            df['Sentiment'] = df['Stars'].apply(lambda x: 0 if x <= 3 else 1)
 
         return df
     else:
-        st.error("CSV-Datei nicht gefunden!")
+        st.error("CSV file not found!")
         return pd.DataFrame()
 
-# Load data
 df = load_data()
 if df.empty:
-    st.error("Fehler beim Laden der Daten.")
+    st.error("Error loading data.")
 else:
-    # Sicherstellen, dass die Spalte 'Text' vorhanden ist, bevor wir weiter arbeiten
-    if 'Text' in df.columns:
-        X_corpus = df['Text']  # Benutze die kombinierte 'Text' Spalte für die TF-IDF-Transformation
-    else:
-        st.error("Fehler: 'Text' Spalte existiert nicht.")
-        X_corpus = []  # Leerer Korpus, falls Text nicht existiert
+    X_corpus = df['Text'] if 'Text' in df.columns else pd.Series(dtype=str)
 
-# Fit TF-IDF vectorizer on training data
 @st.cache_resource
-def load_vectorizer(corpus):
+def load_vectorizer(corpus: pd.Series):
     vectorizer = TfidfVectorizer(max_features=3000)
     vectorizer.fit(corpus)
     return vectorizer
 
-if X_corpus:
+if not X_corpus.empty:
     vectorizer = load_vectorizer(X_corpus)
 else:
     vectorizer = None
 
-# Load models
 model_paths = {
     "Logistic Regression": "models/logistic_regression_model.pkl",
     "Random Forest": "models/random_forest_model.pkl",
@@ -65,7 +59,7 @@ model_paths = {
 }
 
 @st.cache_resource
-def load_models(paths):
+def load_models(paths: dict):
     models = {}
     for name, path in paths.items():
         if os.path.exists(path):
@@ -74,24 +68,28 @@ def load_models(paths):
 
 models = load_models(model_paths)
 
-# Section: Random example sentences
+# Sample reviews
 st.subheader("📝 Choose a sample review (optional)")
 sample_sentences = [
     "Die Lieferung war schnell und das Produkt hat meine Erwartungen übertroffen.",
     "Schrecklicher Kundenservice und ein kaputter Artikel.",
     "Es war okay, nichts Besonderes.",
     "Fantastische Erfahrung von Anfang bis Ende!",
-    "Verspätete Lieferung und keine Reaktion vom Support."
+    "Verspätete Lieferung und keine Reaktion vom Support.",
+    "Nie wieder, bin sehr enttäuscht.",
+    "Jederzeit wieder hat mir sehr gut gefallen.",
+    "Nur Probleme gehabt, nicht wieder!",
+    "Hab was für meine Tochter bestellt und hat geklappt."
 ]
 selected_sentence = st.selectbox("Pick a sentence or write your own below:", options=[""] + sample_sentences)
 
-# Section: Text input
-user_input = st.text_area("✍️ Enter a customer review to predict the star rating:", value=selected_sentence)
+# User input
+user_input = st.text_area("✍️ Enter a customer review to predict sentiment:", value=selected_sentence)
 
-# Section: Preprocessing checkbox
+# Preprocessing option
 preprocess = st.checkbox("Apply text preprocessing (recommended)", value=True)
 
-# Prediction section
+# Prediction
 if st.button("🔎 Predict"):
     if not user_input.strip():
         st.warning("Please enter a valid review.")
@@ -102,38 +100,40 @@ if st.button("🔎 Predict"):
 
             st.subheader("📈 Predictions from Different Models")
 
-            ratings = []
+            sentiments = []
             model_names = []
-            colors = ['#4caf50', '#f44336', '#2196f3']  # Green, Red, Blue
+            values = []
+            colors = ['#f44336', '#4caf50']  # Red=neg, Green=pos
 
-            for idx, (model_name, model) in enumerate(models.items()):
-                prediction = model.predict(user_vector)[0]
-                ratings.append(prediction)
+            for model_name, model in models.items():
+                raw_pred = model.predict(user_vector)[0]
+                pred_bin = 0 if raw_pred <= 3 else 1
+                label = "Negative (1–3 Sterne)" if pred_bin == 0 else "Positive (4–5 Sterne)"
+                sentiments.append(label)
                 model_names.append(model_name)
-                st.success(f"{model_name}: ⭐ Predicted Rating: {int(prediction)}")
+                values.append(pred_bin)
+                st.success(f"{model_name}: 💬 Predicted Sentiment: **{label}**")
 
-            # Plot predictions
-            st.subheader("📊 Comparison Plot")
-            fig, ax = plt.subplots()
-            bars = ax.bar(model_names, ratings, color=colors)
-            ax.set_ylabel("Predicted Rating", fontsize=14)
-            ax.set_ylim(0, 5)
-            ax.set_title("Model Predictions", fontsize=16)
+            # Improved Plot
+            st.subheader("📊 Sentiment Prediction Comparison")
+            fig, ax = plt.subplots(figsize=(8, 5))
+            bars = ax.bar(model_names, values, color=[colors[v] for v in values])
+
+            ax.set_title("Model Sentiment Predictions", fontsize=18, pad=20)
+            ax.set_ylabel("Sentiment (0 = Negativ, 1 = Positiv)", fontsize=14)
+            ax.set_ylim(-0.1, 1.2)
+            ax.set_yticks([0, 1])
             ax.tick_params(axis='x', labelsize=12)
             ax.tick_params(axis='y', labelsize=12)
 
-            for bar in bars:
-                yval = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2.0, yval + 0.1, int(yval), ha='center', fontsize=12)
+            for bar, val in zip(bars, values):
+                ax.text(bar.get_x() + bar.get_width()/2.0, val + 0.08, str(val), ha='center', va='bottom', fontsize=12)
 
             st.pyplot(fig)
         else:
-            st.error("Fehler: Vektorizer konnte nicht geladen werden.")
+            st.error("Error: Vectorizer could not be loaded.")
 
-# Info section
 st.markdown("---")
 st.info(
-    "ℹ️ This app allows you to predict customer review ratings using three different machine learning models. "
-    "It also includes a fun guessing game to test your intuition. The models are trained using TF-IDF vectorization "
-    "and are based on cleaned review text. Great for demos and presentations!"
+    "ℹ️ This app allows you to predict customer review sentiment (Negative vs Positive) using three different machine learning models."
 )
