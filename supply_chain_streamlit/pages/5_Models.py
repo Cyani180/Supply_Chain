@@ -112,9 +112,18 @@ def train_and_display_models():
         st.markdown(f"**Confusion Matrix – {name}**")
         cm = confusion_matrix(y_test, y_pred)
         fig_cm, ax_cm = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm)
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm, cbar=False)
+
+        # Set x- und y-Achsen von 0 bis 5 und stelle sicher, dass sie auch angezeigt werden
         ax_cm.set_xlabel("Predicted")
         ax_cm.set_ylabel("True")
+        ax_cm.set_xticks(range(0, 6))  # Setzt die Ticks von 0 bis 5
+        ax_cm.set_yticks(range(0, 6))  # Setzt die Ticks von 0 bis 5
+        ax_cm.set_xticklabels(range(0, 6))  # Zeigt die Beschriftungen für x-Achse
+        ax_cm.set_yticklabels(range(0, 6))  # Zeigt die Beschriftungen für y-Achse
+        ax_cm.set_xlim(0, 5)  # Begrenzen der x-Achse
+        ax_cm.set_ylim(0, 5)  # Begrenzen der y-Achse
+
         st.pyplot(fig_cm)
 
         # Classification Report as DataFrame
@@ -151,9 +160,18 @@ else:
         # Confusion Matrix
         cm = confusion_matrix(y_test, res["y_pred"])
         fig_cm, ax_cm = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm)
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm, cbar=False)
+
+        # Set x- und y-Achsen von 0 bis 5 und stelle sicher, dass sie auch angezeigt werden
         ax_cm.set_xlabel("Predicted")
         ax_cm.set_ylabel("True")
+        ax_cm.set_xticks(range(0, 6))  # Setzt die Ticks von 0 bis 5
+        ax_cm.set_yticks(range(0, 6))  # Setzt die Ticks von 0 bis 5
+        ax_cm.set_xticklabels(range(0, 6))  # Zeigt die Beschriftungen für x-Achse
+        ax_cm.set_yticklabels(range(0, 6))  # Zeigt die Beschriftungen für y-Achse
+        ax_cm.set_xlim(0, 5)  # Begrenzen der x-Achse
+        ax_cm.set_ylim(0, 5)  # Begrenzen der y-Achse
+
         st.pyplot(fig_cm)
 
         # Classification Report as DataFrame

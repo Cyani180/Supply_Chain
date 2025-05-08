@@ -1,63 +1,88 @@
+# pages/preprocessing_app.py oder main.py
+
 import streamlit as st
-import pandas as pd
-import os
 import nltk
-from nltk.corpus import stopwords
-from preprocessing import (  # type: ignore
-    clean_text,
-    tokenize_text,
-    lemmatize_tokens,
-)
+from langdetect import detect  # type: ignore
+import pandas as pd
 
-# Ensure German stopwords are downloaded
-nltk.download('stopwords')
-german_stopwords = set(stopwords.words('german'))
+from utils.load_and_clean_data import load_and_clean_data  # <- wie oben angepasst
+from preprocessing import clean_text, tokenize_text, lemmatize_tokens  # type: ignore
 
-# Load raw dataset from file
+# Load stopwords only once
 @st.cache_data
-def load_data():
-    path = "data/raw/supply_chain_project_trustpilot_advanced_merge.csv"
-    if os.path.exists(path):
-        df = pd.read_csv(path)
-        df.dropna(subset=['Heading'], inplace=True)
-        return df
-    else:
-        st.error("CSV file not found!")
-        return pd.DataFrame()
+def load_stopwords():
+    nltk.download('stopwords')
+    from nltk.corpus import stopwords
+    german = set(stopwords.words('german'))
+    english = set(stopwords.words('english'))
+    return german, english
 
-df = load_data()
+german_stopwords, english_stopwords = load_stopwords()
 
-# Title
+# Load raw data (just with minimal cleanup)
+try:
+    df = load_and_clean_data()
+except Exception as e:
+    st.error(f"Error loading data: {e}")
+    df = pd.DataFrame()
+
+# UI
 st.title("🧪 Step-by-Step Text Preprocessing")
 
-# Step-by-step preprocessing section
 if not df.empty:
-    selected_heading = st.selectbox("Select a sample heading from the dataset:", df['Heading'].unique())
+    selected_text = st.selectbox("Choose a sample text:", df['Text'].unique())
 
-    if st.button("Run Preprocessing"):
+    if st.button("🚀 Start Preprocessing"):
         st.subheader("1️⃣ Original Text")
-        st.write(selected_heading)
+        st.write(selected_text)
 
-        cleaned = clean_text(selected_heading)
-        st.subheader("2️⃣ Cleaned (lowercased, punctuation and URL removed, etc.)")
-        st.write(cleaned)
+        # Language detection (supporting multiple)
+        try:
+            from langdetect import detect_langs
+            lang_probs = detect_langs(selected_text)
+            detected_langs = [f"{l.lang.upper()} ({round(l.prob * 100)}%)" for l in lang_probs]
+            st.info("🔍 Detected Language(s): " + ", ".join(detected_langs))
+            lang = lang_probs[0].lang if lang_probs else None
+        except Exception:
+            st.warning("⚠️ Could not detect language.")
+            lang = None
 
-        tokens = tokenize_text(cleaned)
-        st.subheader("3️⃣ Tokenized")
-        st.write(tokens)
+        # Processing steps
+        show_clean = st.checkbox("🧼 Clean", value=True)
+        show_tokenize = st.checkbox("🔤 Tokenize", value=True)
+        show_stopwords = st.checkbox("🧹 Remove Stopwords", value=True)
+        show_lemmatize = st.checkbox("🧬 Lemmatize", value=True)
 
-        # Use German stopwords
-        no_stopwords = [word for word in tokens if word.lower() not in german_stopwords]
-        st.subheader("4️⃣ Stopwords Removed (German)")
-        st.write(no_stopwords)
+        result = selected_text
 
-        lemmatized = lemmatize_tokens(no_stopwords)
-        st.subheader("5️⃣ Lemmatized")
-        st.write(lemmatized)
+        if show_clean:
+            result = clean_text(result)
+            st.subheader("2️⃣ Cleaned")
+            st.write(result)
+
+        if show_tokenize:
+            tokens = tokenize_text(result)
+            st.subheader("3️⃣ Tokenized")
+            st.write(tokens)
+        else:
+            tokens = tokenize_text(result)
+
+        if show_stopwords:
+            stopwords_set = german_stopwords if lang == 'de' else english_stopwords if lang == 'en' else german_stopwords.union(english_stopwords)
+            tokens = [word for word in tokens if word.lower() not in stopwords_set]
+            st.subheader("4️⃣ Stopwords Removed")
+            st.write(tokens)
+
+        if show_lemmatize:
+            lemmatized = lemmatize_tokens(tokens)
+            st.subheader("5️⃣ Lemmatized")
+            st.write(lemmatized)
+        else:
+            lemmatized = tokens
 
         final_text = ' '.join(lemmatized)
         st.subheader("✅ Final Preprocessed Text")
         st.write(final_text)
 
 else:
-    st.warning("Failed to load data.")
+    st.warning("⚠️ No data loaded.")
