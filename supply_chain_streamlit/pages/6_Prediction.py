@@ -6,7 +6,65 @@ import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from preprocessing import preprocess_text  # custom preprocessing
 from utils.load_data import load_clean_data  # clean dataset loader
+import re
 
+from transformers import BertTokenizer, BertForSequenceClassification
+import torch
+
+# Lade das vortrainierte BERT-Modell und den Tokenizer
+tokenizer = BertTokenizer.from_pretrained('bert-base-german-cased')
+model = BertForSequenceClassification.from_pretrained('bert-base-german-cased', num_labels=2)
+
+# Liste von Negationswörtern
+NEGATIONS = ["nicht", "kein", "nie", "weder", "noch", "überhaupt nicht", "gar nicht", "keineswegs"]
+
+def detect_negation(text):
+    """
+    Überprüft, ob ein Satz eine Negation enthält.
+    :param text: Der zu überprüfende Satz.
+    :return: True, wenn eine Negation erkannt wird, andernfalls False.
+    """
+    text = text.lower()
+    return any(neg in text for neg in NEGATIONS)
+
+def predict_sentiment(text):
+    inputs = tokenizer(text, return_tensors='pt', truncation=True, padding=True, max_length=512)
+    with torch.no_grad():
+        outputs = model(**inputs)
+    logits = outputs.logits
+    prediction = torch.argmax(logits, dim=-1).item()
+    sentiment = 'Positiv' if prediction == 1 else 'Negativ'
+    
+    # Invertiere das Sentiment, wenn eine Negation erkannt wird
+    if detect_negation(text):
+        sentiment = 'Negativ' if sentiment == 'Positiv' else 'Positiv'
+    
+    return sentiment
+
+def adjust_sentiment_based_on_negation(sentiment, text):
+    """
+    Passt die Sentimentbewertung basierend auf der Erkennung von Negationen an.
+    :param sentiment: Die ursprüngliche Sentimentbewertung (0 für negativ, 1 für positiv).
+    :param text: Der zu überprüfende Satz.
+    :return: Die angepasste Sentimentbewertung.
+    """
+    negations = ["nicht", "kein", "nie", "weder", "noch", "überhaupt nicht", "gar nicht", "keineswegs"]
+    text = text.lower()
+    if any(neg in text for neg in negations):
+        # Invertiere die Sentimentbewertung bei Vorliegen einer Negation
+        return 1 - sentiment
+    return sentiment
+
+# Beispiel für die Verwendung der Funktion
+sentiment = 1  # Angenommene positive Bewertung
+text = "Schrecklicher Kundenservice und ein kaputter Artikel."
+adjusted_sentiment = adjust_sentiment_based_on_negation(sentiment, text)
+print(f"Angepasste Sentimentbewertung: {adjusted_sentiment}")
+
+# Beispielanwendung
+text = "Schrecklicher Kundenservice und ein kaputter Artikel."
+sentiment = predict_sentiment(text)
+print(f"Sentiment: {sentiment}")
 st.set_page_config(page_title="Review Sentiment Prediction", layout="wide")
 st.title("🔮 Predict Review Sentiment")
 
@@ -71,15 +129,15 @@ models = load_models(model_paths)
 # Sample reviews
 st.subheader("📝 Choose a sample review (optional)")
 sample_sentences = [
-    "Delivery was fast and the product exceeded my expectations.",
-    "Terrible customer service and a broken item.",
-    "It was okay, nothing special.",
-    "Fantastic experience from start to finish!",
-    "Delayed delivery and no response from support.",
-    "Never again, very disappointed.",
-    "Anytime again, I liked it very much.",
-    "Only had problems, not again!",
-    "Ordered something for my daughter and it worked."
+    "Die Lieferung war schnell und das Produkt hat meine Erwartungen übertroffen.",
+    "Schrecklicher Kundenservice und ein kaputter Artikel.",
+    "Es war okay, nichts Besonderes.",
+    "Fantastische Erfahrung von Anfang bis Ende!",
+    "Verspätete Lieferung und keine Antwort vom Support.",
+    "Nie wieder, sehr enttäuscht.",
+    "Jederzeit wieder, es hat mir sehr gut gefallen.",
+    "Hatte nur Probleme, nicht wieder!",
+    "Habe etwas für meine Tochter bestellt und es hat funktioniert."
 ]
 selected_sentence = st.selectbox("Pick a sentence or write your own below:", options=[""] + sample_sentences)
 
@@ -109,10 +167,15 @@ if st.button("🔎 Predict"):
                 raw_pred = model.predict(user_vector)[0]
                 pred_bin = 0 if raw_pred <= 3 else 1
                 label = "Negative (1–3 Sterne)" if pred_bin == 0 else "Positive (4–5 Sterne)"
-                sentiments.append(label)
+                
+                # Anpassung der Sentimentbewertung bei Vorliegen einer Negation
+                adjusted_pred_bin = adjust_sentiment_based_on_negation(pred_bin, input_text)
+                adjusted_label = "Negative (1–3 Sterne)" if adjusted_pred_bin == 0 else "Positive (4–5 Sterne)"
+                
+                sentiments.append(adjusted_label)
                 model_names.append(model_name)
-                values.append(pred_bin)
-                st.success(f"{model_name}: 💬 Predicted Sentiment: **{label}**")
+                values.append(adjusted_pred_bin)
+                st.success(f"{model_name}: 💬 Adjusted Predicted Sentiment: **{adjusted_label}**")
 
             # Improved Plot
             st.subheader("📊 Sentiment Prediction Comparison")
