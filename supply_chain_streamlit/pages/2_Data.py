@@ -88,8 +88,7 @@ def load_and_clean_data():
 df = load_and_clean_data()
 
 # Topic modeling with BERTopic
-st.markdown("---")
-st.subheader("🧠 Topic Clustering with BERTopic")
+
 
 retrain = st.button("🔁 Retrain BERTopic Model")
 
@@ -146,6 +145,9 @@ fig_bar, ax_bar = plt.subplots()
 sns.barplot(data=freq_df, x='Count', y='Word', ax=ax_bar)
 ax_bar.set_title("Word Frequency")
 st.pyplot(fig_bar)
+
+st.markdown("---")
+st.subheader("🧠 Topic Clustering with BERTopic")
 
 # Topic preview
 st.subheader("📌 Topic Preview")
