@@ -71,15 +71,15 @@ models = load_models(model_paths)
 # Sample reviews
 st.subheader("📝 Choose a sample review (optional)")
 sample_sentences = [
-    "Die Lieferung war schnell und das Produkt hat meine Erwartungen übertroffen.",
-    "Schrecklicher Kundenservice und ein kaputter Artikel.",
-    "Es war okay, nichts Besonderes.",
-    "Fantastische Erfahrung von Anfang bis Ende!",
-    "Verspätete Lieferung und keine Reaktion vom Support.",
-    "Nie wieder, bin sehr enttäuscht.",
-    "Jederzeit wieder hat mir sehr gut gefallen.",
-    "Nur Probleme gehabt, nicht wieder!",
-    "Hab was für meine Tochter bestellt und hat geklappt."
+    "Delivery was fast and the product exceeded my expectations.",
+    "Terrible customer service and a broken item.",
+    "It was okay, nothing special.",
+    "Fantastic experience from start to finish!",
+    "Delayed delivery and no response from support.",
+    "Never again, very disappointed.",
+    "Anytime again, I liked it very much.",
+    "Only had problems, not again!",
+    "Ordered something for my daughter and it worked."
 ]
 selected_sentence = st.selectbox("Pick a sentence or write your own below:", options=[""] + sample_sentences)
 
