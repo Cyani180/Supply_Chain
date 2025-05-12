@@ -11,18 +11,18 @@ import re
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
 
-# Lade das vortrainierte BERT-Modell und den Tokenizer
+# Load the pre-trained BERT model and the Tokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-german-cased')
 model = BertForSequenceClassification.from_pretrained('bert-base-german-cased', num_labels=2)
 
-# Liste von Negationswörtern
+# List of negation words
 NEGATIONS = ["nicht", "kein", "nie", "weder", "noch", "überhaupt nicht", "gar nicht", "keineswegs"]
 
 def detect_negation(text):
     """
-    Überprüft, ob ein Satz eine Negation enthält.
-    :param text: Der zu überprüfende Satz.
-    :return: True, wenn eine Negation erkannt wird, andernfalls False.
+     Checks whether a sentence contains a negation.
+    :param text: The sentence to be checked.
+    :return: True if a negation is recognized, otherwise False.
     """
     text = text.lower()
     return any(neg in text for neg in NEGATIONS)
@@ -35,7 +35,7 @@ def predict_sentiment(text):
     prediction = torch.argmax(logits, dim=-1).item()
     sentiment = 'Positiv' if prediction == 1 else 'Negativ'
     
-    # Invertiere das Sentiment, wenn eine Negation erkannt wird
+    # Invert the sentiment when a negation is recognized
     if detect_negation(text):
         sentiment = 'Negativ' if sentiment == 'Positiv' else 'Positiv'
     
@@ -43,25 +43,25 @@ def predict_sentiment(text):
 
 def adjust_sentiment_based_on_negation(sentiment, text):
     """
-    Passt die Sentimentbewertung basierend auf der Erkennung von Negationen an.
-    :param sentiment: Die ursprüngliche Sentimentbewertung (0 für negativ, 1 für positiv).
-    :param text: Der zu überprüfende Satz.
-    :return: Die angepasste Sentimentbewertung.
+    Adjusts the sentiment score based on the detection of negations.
+    :param sentiment: The original sentiment score (0 for negative, 1 for positive).
+    :param text: The sentence to be checked.
+    :return: The adjusted sentiment score.
     """
     negations = ["nicht", "kein", "nie", "weder", "noch", "überhaupt nicht", "gar nicht", "keineswegs"]
     text = text.lower()
     if any(neg in text for neg in negations):
-        # Invertiere die Sentimentbewertung bei Vorliegen einer Negation
+        # Invert the sentiment evaluation in the presence of a negation
         return 1 - sentiment
     return sentiment
 
-# Beispiel für die Verwendung der Funktion
-sentiment = 1  # Angenommene positive Bewertung
+# Example of the use of the function
+sentiment = 1  # Accepted positive evaluation
 text = "Schrecklicher Kundenservice und ein kaputter Artikel."
 adjusted_sentiment = adjust_sentiment_based_on_negation(sentiment, text)
 print(f"Angepasste Sentimentbewertung: {adjusted_sentiment}")
 
-# Beispielanwendung
+# Example application
 text = "Schrecklicher Kundenservice und ein kaputter Artikel."
 sentiment = predict_sentiment(text)
 print(f"Sentiment: {sentiment}")
@@ -133,6 +133,8 @@ sample_sentences = [
     "Schrecklicher Kundenservice und ein kaputter Artikel.",
     "Es war okay, nichts Besonderes.",
     "Fantastische Erfahrung von Anfang bis Ende!",
+    "Alles super, jederzeit wieder.",
+    "Spitzen erfahung.",
     "Verspätete Lieferung und keine Antwort vom Support.",
     "Nie wieder, sehr enttäuscht.",
     "Jederzeit wieder, es hat mir sehr gut gefallen.",
